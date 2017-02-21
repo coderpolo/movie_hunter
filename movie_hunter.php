@@ -1,10 +1,15 @@
 <?php
 require_once('class.phpmailer.php');
 include('class.smtp.php');
-include('config.php');
 ini_set("display_errors", "On");
 
-function logOnTmp($notice, $infoObj = null) {
+function get_config($key)
+{
+    $str = file_get_contents("./config.json");
+    return json_decode($str,true)[$key];
+}
+
+function _log($notice, $infoObj = null) {
     //如果不是字符串,则先将其转换为json字符串
     if ($infoObj != null && !is_string($infoObj)) {
         $infoObj = json_encode($infoObj);
@@ -23,18 +28,14 @@ function logOnTmp($notice, $infoObj = null) {
 }
 
 
-
-$movie_list = get_moive_list();
-
-
 function generate_url($movie_name)
 {
     $dytt_url = "http://s.dydytt.net/plus/search.php/?kwtype=0&keyword=".iconv('UTF-8','GBK',$movie_name) ;
 
     $dysf_url = "http://www.dysfz.net/key/".urlencode($movie_name)."/";
 
-    $urls = array('dytt'=>$dytt_url,
-                    'dysf'=>$dysf_url);
+    $urls = array(  'dytt'=>$dytt_url,
+        'dysf'=>$dysf_url);
     return $urls;
 }
 
@@ -47,21 +48,19 @@ function search_movie($site,$movie_name,$url)
 
     curl_setopt_array($curl, array(
             CURLOPT_RETURNTRANSFER => true,
+            //ENCODING为空表示接受所有允许的编码
             CURLOPT_ENCODING => "",
             CURLOPT_MAXREDIRS => 10,
             CURLOPT_TIMEOUT => 30,
             CURLOPT_RETURNTRANSFER=>'1',
         )
     );
-
     $content = curl_exec($curl);
-    filter_html($site,$movie_name,$url,$content);
+    return filter_html($site,$movie_name,$url,$content);
 }
 
 function filter_html($site_name,$movie_name,$url,$html_content)
 {
-    $conf = get_conf();
-
     switch ($site_name)
     {
         case "dytt":
@@ -73,7 +72,7 @@ function filter_html($site_name,$movie_name,$url,$html_content)
                 $count =  intval(substr($html_content,$record_pos-1,1));
                 if ($count>0)
                 {
-                    postmail($conf['to'],$movie_name,$url);
+                    return true;
                 }
             }
 
@@ -85,13 +84,13 @@ function filter_html($site_name,$movie_name,$url,$html_content)
                 $count = intval(substr($html_content,$record_pos-1,1));
                 if ($count>0)
                 {
-                    postmail($conf['to'],$movie_name,$url);
+                    return true;
                 }
             }
 
         default:
             break;
-
+            return false;
     }
 
 }
@@ -99,8 +98,7 @@ function filter_html($site_name,$movie_name,$url,$html_content)
 function postmail($to,$subject = '',$body = ''){
 
     $mail             = new PHPMailer();
-    $conf = get_conf();
-//    $body            = eregi_replace("[\]",'',$body);
+    $conf = get_config("mail");
 
     $mail->CharSet=$conf['CharSet'];
     $mail->IsSMTP=$conf['IsSMTP'];
@@ -112,7 +110,7 @@ function postmail($to,$subject = '',$body = ''){
     $mail->Username   = $conf['Username'];
     $mail->Password   = $conf['Password'];
     $mail->SetFrom($conf['FromMail'],$conf['FromName']);
-        //    $mail->AddReplyTo('xxx@xxx.xxx','who');
+    //    $mail->AddReplyTo('xxx@xxx.xxx','who');
     $mail->Subject    = $subject;
     $mail->AltBody    = $conf['AltBody'];
     $mail->MsgHTML($body);
@@ -123,21 +121,37 @@ function postmail($to,$subject = '',$body = ''){
         echo 'Mailer Error: ' . $mail->ErrorInfo;
         return false;
     }
-    logOnTmp("send mail success");
+    _log("send mail success");
 
     echo "Message sent!恭喜，邮件发送成功！";
     return true;
 }
 
-logOnTmp("start scan...");
-foreach ($movie_list as $movie_name)
+_log("start scan...");
+
+$_movie_list=get_config("movie");
+foreach ($_movie_list as $user =>$movies)
 {
-    $urls = generate_url($movie_name);
-    foreach ($urls as $site=>$url)
+    foreach ($movies as $movie)
     {
-        search_movie($site,mb_convert_encoding($movie_name,"GBK"),$url);
+        $urls = generate_url($movie);
+        foreach ($urls as $site=>$url)
+        {
+            $is_find = search_movie($site,mb_convert_encoding($movie,"GBK"),$url);
+            if ($is_find)
+            {
+                postmail($user,mb_convert_encoding($movie,"GBK"),$url);
+            }
+            else
+            {
+                echo "暂未找到相关资源\n";
+            }
+
+        }
     }
 }
-logOnTmp("stop scan...");
+
+_log("stop scan...");
+
 
 ?>

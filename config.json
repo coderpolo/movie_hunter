@@ -1,0 +1,22 @@
+{
+    "movie":
+    {
+        "xx@xx.com":["movie name"]
+    },
+
+    "mail":{
+        "CharSet":"GBK",
+        "IsSMTP":true,
+        "SMTPDebug":true,
+        "SMTPAuth":true,
+        "SMTPSecure":"ssl",
+        "Host":"smtp.xx.com",
+        "Port":465,
+        "Username":"",
+        "Password":"",
+        "FromMail":"@.",
+        "FromName":"movie_hunter",
+        "AltBody":"To view the message, please use an HTML compatible email viewer!",
+        "to":"@.com"
+    }
+}
